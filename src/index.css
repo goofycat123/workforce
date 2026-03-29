@@ -264,6 +264,12 @@ tbody tr:hover { background: rgba(255,255,255,.02); }
 
 /* MOBILE */
 @media (max-width: 768px) {
+  .page-title { font-size: 16px; }
+  .flex-between, [style*="display:'flex'"], [style*="display: 'flex'"] { flex-wrap: wrap; }
+  /* top bar with tabs + period selector */
+  [style*="alignItems:center"][style*="gap:12"] { flex-wrap: wrap; gap: 8px !important; }
+  select.form-input[style*="marginLeft:'auto'"], select.form-input[style*="marginLeft: 'auto'"] { margin-left: 0 !important; width: 100% !important; }
+
   .sidebar {
     width: 100%; height: auto; position: relative;
     flex-direction: row; flex-wrap: wrap;
