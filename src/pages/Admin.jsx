@@ -13,7 +13,7 @@ export default function Admin() {
   const [employees, setEmployees] = useState([])
   const [earnings, setEarnings] = useState([])
   const [allSales, setAllSales] = useState([])
-  const [periodFilter, setPeriodFilter] = useState('all')
+  const [periodFilter, setPeriodFilter] = useState(() => { const n=new Date(),y=n.getFullYear(),m=n.getMonth()+1,d=n.getDate(); return `${y}-${m}-${d<=15?'first':'second'}` })
   const [loading, setLoading]   = useState(true)
   const [msg, setMsg]           = useState(null)
 

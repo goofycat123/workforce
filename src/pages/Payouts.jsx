@@ -123,16 +123,16 @@ export default function Payouts() {
     <div>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24,flexWrap:'wrap'}}>
         <h1 className="page-title" style={{margin:0}}>Payouts</h1>
-        <select className="form-input form-select" style={{width:'auto',padding:'4px 10px',fontSize:13}}
-          value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)}>
-          <option value="all">All time</option>
-          {periodOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
-        <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
+        <div style={{display:'flex',gap:8}}>
           <button className={`btn btn-sm ${tab==='overview'?'btn-primary':'btn-secondary'}`} onClick={()=>setTab('overview')}>Overview</button>
           <button className={`btn btn-sm ${tab==='invoice'?'btn-primary':'btn-secondary'}`} onClick={()=>setTab('invoice')}>Invoice</button>
           {tab==='invoice' && <button className="btn btn-sm btn-secondary" onClick={()=>window.print()}>Print</button>}
         </div>
+        <select className="form-input form-select" style={{marginLeft:'auto',width:'auto',padding:'4px 10px',fontSize:13}}
+          value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)}>
+          <option value="all">All time</option>
+          {periodOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
       </div>
 
       {/* OVERVIEW — full breakdown, owner only */}

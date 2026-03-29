@@ -24,7 +24,7 @@ export default function Dashboard() {
   const [sales,     setSales]  = useState([])
   const [adjusts,   setAdj]    = useState([])
   const [loading,   setLoading] = useState(true)
-  const [period,    setPeriod]  = useState('all')
+  const [period,    setPeriod]  = useState(() => { const n=new Date(),y=n.getFullYear(),m=n.getMonth()+1,d=n.getDate(); return `${y}-${m}-${d<=15?'first':'second'}` })
   const [tab,       setTab]     = useState('entries')
   const [cms,       setCms]     = useState(CM_DEFAULTS)
 
