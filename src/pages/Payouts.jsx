@@ -20,6 +20,9 @@ export default function Payouts() {
     return `${y}-${m}-${d <= 15 ? 'first' : 'second'}`
   })
   const [cms, setCms] = useState(CM_DEFAULTS)
+  const [cmPaid, setCmPaid] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cm_paid') || '{}') } catch { return {} }
+  })
   const [tab, setTab] = useState('overview')
 
   useEffect(() => { loadData() }, [])
@@ -35,6 +38,26 @@ export default function Payouts() {
     setAllSales(sales || [])
     setAdjusts(earns || [])
     setLoading(false)
+  }
+
+  async function togglePaid(emp_id) {
+    const existing = adjusts.find(x => x.user_id === emp_id)
+    const newVal = !(existing?.paid)
+    if (!existing) {
+      const { data, error } = await supabase.from('earnings').insert([
+        { user_id: emp_id, paid: newVal }
+      ]).select()
+      if (!error && data?.length) setAdjusts([...adjusts, data[0]])
+    } else {
+      await supabase.from('earnings').update({ paid: newVal }).eq('id', existing.id)
+      setAdjusts(adjusts.map(a => a.id === existing.id ? {...a, paid: newVal} : a))
+    }
+  }
+
+  function toggleCmPaid(i) {
+    const updated = { ...cmPaid, [i]: !cmPaid[i] }
+    setCmPaid(updated)
+    localStorage.setItem('cm_paid', JSON.stringify(updated))
   }
 
   async function updateAdjustment(emp_id, field, value) {
@@ -181,6 +204,7 @@ export default function Payouts() {
                   <th className="r" style={{color:'#fcd34d'}}>Advance</th>
                   <th className="r" style={{color:'#f87171'}}>Penalty</th>
                   <th className="r">Net payout</th>
+                  <th className="r">Status</th>
                 </tr></thead>
                 <tbody>
                   {loading && <tr><td colSpan={8} style={{textAlign:'center',padding:30,color:'#64748b'}}>Loading…</td></tr>}
@@ -234,12 +258,19 @@ export default function Payouts() {
                           </div>
                         </td>
                         <td className="r" style={{fontWeight:700,color:netPayout>=0?'#22c55e':'#f87171'}}>{fmt(netPayout)}</td>
+                        <td className="r">
+                          {a.paid
+                            ? <span onClick={()=>togglePaid(emp.id)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
+                            : <button onClick={()=>togglePaid(emp.id)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
+                          }
+                        </td>
                       </tr>
                     )
                   })}
                 </tbody>
                 <tfoot><tr className="tfoot-row">
                   <td colSpan={3}>Total</td>
+                  <td></td>
                   <td className="r" style={{color:'#4ade80'}}>{fmt(totalVenceBonus + chatters.reduce((s,e)=>{const a=adjusts.find(x=>x.user_id===e.id)||{};return s+(+a.owner_bonus||0)},0))}</td>
                   <td className="r" style={{color:'#22c55e'}}>{fmt(chatterGross)}</td>
                   <td className="r" style={{color:'#fcd34d'}}>{totalAdvances ? '-'+fmt(totalAdvances) : '—'}</td>
@@ -258,6 +289,7 @@ export default function Payouts() {
                   <th>Name</th>
                   <th className="r">%</th>
                   <th className="r">Amount</th>
+                  <th className="r">Status</th>
                 </tr></thead>
                 <tbody>
                   {cms.map((c,i) => (
@@ -273,6 +305,12 @@ export default function Payouts() {
                         <span style={{color:'#64748b',marginLeft:4}}>%</span>
                       </td>
                       <td className="r" style={{fontWeight:700,color:'#22c55e'}}>{fmt(totalNetSales * c.pct / 100)}</td>
+                      <td className="r">
+                        {cmPaid[i]
+                          ? <span onClick={()=>toggleCmPaid(i)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
+                          : <button onClick={()=>toggleCmPaid(i)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
+                        }
+                      </td>
                     </tr>
                   ))}
                 </tbody>
