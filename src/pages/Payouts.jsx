@@ -377,10 +377,7 @@ export default function Payouts() {
               <span style={{color:'#94a3b8',fontSize:14}}>Chatters Pay</span>
               <span style={{fontWeight:700,color:'#22c55e'}}>{fmt(chatterGross)}</span>
             </div>
-            <div style={{display:'flex',justifyContent:'space-between',padding:'12px 20px',borderBottom:'1px solid #1e293b'}}>
-              <span style={{color:'#94a3b8',fontSize:14}}>Management</span>
-              <span style={{fontWeight:700,color:'#a78bfa'}}>{fmt(totalCMs)}</span>
-            </div>
+
             <div style={{display:'flex',justifyContent:'space-between',padding:'16px 20px'}}>
               <span style={{fontWeight:700,fontSize:15}}>Total Due</span>
               <span style={{fontWeight:800,fontSize:22,color:'#f59e0b'}}>{fmt(grandTotal)}</span>
