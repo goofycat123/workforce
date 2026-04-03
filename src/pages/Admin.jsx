@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import * as XLSX from 'xlsx'
+import { adjustmentForPeriod, findAdjustmentRow } from '../lib/earningsAdjustments'
 
 function fmt(n) { return '$' + Number(n||0).toFixed(2) }
 
@@ -97,11 +98,16 @@ export default function Admin() {
   }
 
   async function upsertEarning(userId, field, value) {
-    const existing = earnings.find(e => e.user_id === userId)
+    if (periodFilter === 'all') return
+    const existing = findAdjustmentRow(earnings, userId, periodFilter)
     if (existing) {
       await supabase.from('earnings').update({ [field]: +value, updated_at: new Date().toISOString() }).eq('id', existing.id)
     } else {
-      await supabase.from('earnings').insert({ user_id: userId, [field]: +value })
+      await supabase.from('earnings').insert({
+        user_id: userId,
+        payout_period_key: periodFilter,
+        [field]: +value,
+      })
     }
     await loadAll()
   }
@@ -206,6 +212,11 @@ export default function Admin() {
           {periodOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </div>
+      {periodFilter === 'all' && (
+        <p style={{fontSize:13,color:'#94a3b8',marginBottom:20}}>
+          Choose a pay period (not &ldquo;All time&rdquo;) to edit bonuses, penalties, and advances; values are stored per period tab.
+        </p>
+      )}
 
       {/* QUICK ENTRY */}
       {tab === 'entry' && (
@@ -258,32 +269,33 @@ export default function Admin() {
                   {loading && <tr><td colSpan={8} style={{textAlign:'center',padding:30,color:'#64748b'}}>Loading…</td></tr>}
                   {!loading && employees.filter(e=>e.role==='chatter').map(emp => {
                     const s = filteredByUser[emp.id] || { net_sales: 0, earnings: 0 }
-                    const e = earnings.find(x=>x.user_id===emp.id) || {}
+                    const e = adjustmentForPeriod(earnings, emp.id, periodFilter)
                     const netOwed = s.earnings + (+e.vence_bonus||0) - (+e.penalty||0) - (+e.advance||0)
                     if (s.net_sales === 0 && !e.vence_bonus && !e.owner_bonus && !e.penalty && !e.advance) return null
+                    const periodEdit = periodFilter !== 'all'
                     return (
                       <tr key={emp.id}>
                         <td style={{fontWeight:600}}>{emp.name}</td>
                         <td className="r">{fmt(s.net_sales)}</td>
                         <td className="r" style={{color:'#22c55e',fontWeight:600}}>{fmt(s.earnings)}</td>
                         <td className="r">
-                          <input type="number" min="0" step="0.01" defaultValue={e.vence_bonus||''}
-                            className="table-input" style={{color:'var(--green-t)'}}
+                          <input type="number" min="0" step="0.01" key={`vb-${emp.id}-${periodFilter}`} defaultValue={e.vence_bonus||''}
+                            className="table-input" style={{color:'var(--green-t)'}} disabled={!periodEdit}
                             onBlur={ev => upsertEarning(emp.id,'vence_bonus',ev.target.value||0)} />
                         </td>
                         <td className="r">
-                          <input type="number" min="0" step="0.01" defaultValue={e.owner_bonus||''}
-                            className="table-input" style={{color:'var(--purple)'}}
+                          <input type="number" min="0" step="0.01" key={`ob-${emp.id}-${periodFilter}`} defaultValue={e.owner_bonus||''}
+                            className="table-input" style={{color:'var(--purple)'}} disabled={!periodEdit}
                             onBlur={ev => upsertEarning(emp.id,'owner_bonus',ev.target.value||0)} />
                         </td>
                         <td className="r">
-                          <input type="number" min="0" step="0.01" defaultValue={e.penalty||''}
-                            className="table-input" style={{color:'var(--red)'}}
+                          <input type="number" min="0" step="0.01" key={`pe-${emp.id}-${periodFilter}`} defaultValue={e.penalty||''}
+                            className="table-input" style={{color:'var(--red)'}} disabled={!periodEdit}
                             onBlur={ev => upsertEarning(emp.id,'penalty',ev.target.value||0)} />
                         </td>
                         <td className="r">
-                          <input type="number" min="0" step="0.01" defaultValue={e.advance||''}
-                            className="table-input" style={{color:'var(--amber)'}}
+                          <input type="number" min="0" step="0.01" key={`ad-${emp.id}-${periodFilter}`} defaultValue={e.advance||''}
+                            className="table-input" style={{color:'var(--amber)'}} disabled={!periodEdit}
                             onBlur={ev => upsertEarning(emp.id,'advance',ev.target.value||0)} />
                         </td>
                         <td className="r" style={{fontWeight:700,color:netOwed>=0?'#22c55e':'#f87171'}}>{fmt(netOwed)}</td>
@@ -300,7 +312,7 @@ export default function Admin() {
                     <td className="r" style={{color:'#22c55e'}}>{fmt(
                       employees.filter(e=>e.role==='chatter').reduce((sum,emp) => {
                         const s = filteredByUser[emp.id] || { earnings: 0 }
-                        const e = earnings.find(x=>x.user_id===emp.id) || {}
+                        const e = adjustmentForPeriod(earnings, emp.id, periodFilter)
                         return sum + s.earnings + (+e.vence_bonus||0) - (+e.penalty||0) - (+e.advance||0)
                       }, 0)
                     )}</td>
@@ -377,31 +389,32 @@ export default function Admin() {
                     <tbody>
                       {employees.filter(e=>e.role==='chatter').map(emp => {
                         const s = filteredByUser[emp.id] || { net_sales: 0, earnings: 0 }
-                        const e = earnings.find(x => x.user_id === emp.id) || {}
+                        const e = adjustmentForPeriod(earnings, emp.id, periodFilter)
                         const netOwed = s.earnings + (+e.vence_bonus||0) - (+e.penalty||0) - (+e.advance||0)
+                        const periodEdit = periodFilter !== 'all'
                         return (
                           <tr key={emp.id}>
                             <td style={{fontWeight:600}}>{emp.name}</td>
                             <td className="r" style={{color:'#94a3b8'}}>{fmt(s.net_sales)}</td>
                             <td className="r" style={{color:'#22c55e',fontWeight:600}}>{fmt(s.earnings)}</td>
                             <td className="r">
-                              <input type="number" min="0" step="0.01" defaultValue={e.vence_bonus||''}
-                                className="table-input" style={{color:'var(--green-t)'}}
+                              <input type="number" min="0" step="0.01" key={`evb-${emp.id}-${periodFilter}`} defaultValue={e.vence_bonus||''}
+                                className="table-input" style={{color:'var(--green-t)'}} disabled={!periodEdit}
                                 onBlur={ev => upsertEarning(emp.id,'vence_bonus',ev.target.value||0)} />
                             </td>
                             <td className="r">
-                              <input type="number" min="0" step="0.01" defaultValue={e.owner_bonus||''}
-                                className="table-input" style={{color:'var(--purple)'}}
+                              <input type="number" min="0" step="0.01" key={`eob-${emp.id}-${periodFilter}`} defaultValue={e.owner_bonus||''}
+                                className="table-input" style={{color:'var(--purple)'}} disabled={!periodEdit}
                                 onBlur={ev => upsertEarning(emp.id,'owner_bonus',ev.target.value||0)} />
                             </td>
                             <td className="r">
-                              <input type="number" min="0" step="0.01" defaultValue={e.penalty||''}
-                                className="table-input" style={{color:'var(--red)'}}
+                              <input type="number" min="0" step="0.01" key={`epe-${emp.id}-${periodFilter}`} defaultValue={e.penalty||''}
+                                className="table-input" style={{color:'var(--red)'}} disabled={!periodEdit}
                                 onBlur={ev => upsertEarning(emp.id,'penalty',ev.target.value||0)} />
                             </td>
                             <td className="r">
-                              <input type="number" min="0" step="0.01" defaultValue={e.advance||''}
-                                className="table-input" style={{color:'var(--amber)'}}
+                              <input type="number" min="0" step="0.01" key={`ead-${emp.id}-${periodFilter}`} defaultValue={e.advance||''}
+                                className="table-input" style={{color:'var(--amber)'}} disabled={!periodEdit}
                                 onBlur={ev => upsertEarning(emp.id,'advance',ev.target.value||0)} />
                             </td>
                             <td className="r" style={{fontWeight:700,color: netOwed>=0?'#22c55e':'#f87171'}}>{fmt(netOwed)}</td>

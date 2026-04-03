@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { adjustmentForPeriod } from '../lib/earningsAdjustments'
 
 function fmt(n) { return '$' + Number(n||0).toFixed(2) }
 
@@ -94,7 +95,7 @@ export default function Dashboard() {
   const totalNS  = Object.values(byUser).reduce((s,x)=>s+x.net_sales, 0)
   const chatters = employees.filter(e => e.role==='chatter' && byUser[e.id])
   const chatterGross = chatters.reduce((sum,emp) => {
-    const a = adjusts.find(x=>x.user_id===emp.id)||{}
+    const a = adjustmentForPeriod(adjusts, emp.id, period)
     return sum + byUser[emp.id].earnings + (+a.vence_bonus||0)
   }, 0)
   const grandTotal = chatterGross + totalNS * 0.04

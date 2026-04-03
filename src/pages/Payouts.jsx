@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { adjustmentForPeriod, findAdjustmentRow } from '../lib/earningsAdjustments'
 
 function fmt(n) { return '$' + Number(n||0).toFixed(2) }
 
@@ -41,11 +42,12 @@ export default function Payouts() {
   }
 
   async function togglePaid(emp_id) {
-    const existing = adjusts.find(x => x.user_id === emp_id)
+    if (periodFilter === 'all') return
+    const existing = findAdjustmentRow(adjusts, emp_id, periodFilter)
     const newVal = !(existing?.paid)
     if (!existing) {
       const { data, error } = await supabase.from('earnings').insert([
-        { user_id: emp_id, paid: newVal }
+        { user_id: emp_id, paid: newVal, payout_period_key: periodFilter }
       ]).select()
       if (!error && data?.length) setAdjusts([...adjusts, data[0]])
     } else {
@@ -61,12 +63,13 @@ export default function Payouts() {
   }
 
   async function updateAdjustment(emp_id, field, value) {
-    const existing = adjusts.find(x => x.user_id === emp_id)
+    if (periodFilter === 'all') return
+    const existing = findAdjustmentRow(adjusts, emp_id, periodFilter)
     const numValue = +value || 0
 
     if (!existing) {
       const { data, error } = await supabase.from('earnings').insert([
-        { user_id: emp_id, [field]: numValue }
+        { user_id: emp_id, payout_period_key: periodFilter, [field]: numValue }
       ]).select()
 
       if (!error && data?.length) {
@@ -119,22 +122,22 @@ export default function Payouts() {
   // Advances/penalties are post-invoice deductions — partner doesn't pay for those
   const chatterGross = chatters.reduce((sum, emp) => {
     const s = byUser[emp.id]
-    const a = adjusts.find(x => x.user_id === emp.id) || {}
+    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
     return sum + s.earnings + (+a.vence_bonus||0)
   }, 0)
 
   const totalAdvances = chatters.reduce((sum, emp) => {
-    const a = adjusts.find(x => x.user_id === emp.id) || {}
+    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
     return sum + (+a.advance||0)
   }, 0)
 
   const totalPenalties = chatters.reduce((sum, emp) => {
-    const a = adjusts.find(x => x.user_id === emp.id) || {}
+    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
     return sum + (+a.penalty||0)
   }, 0)
 
   const totalVenceBonus = chatters.reduce((sum, emp) => {
-    const a = adjusts.find(x => x.user_id === emp.id) || {}
+    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
     return sum + (+a.vence_bonus||0)
   }, 0)
 
@@ -157,6 +160,11 @@ export default function Payouts() {
           {periodOptions.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </div>
+      {tab === 'overview' && periodFilter === 'all' && (
+        <p style={{fontSize:13,color:'#94a3b8',margin:'-12px 0 20px'}}>
+          Select a pay period (e.g. Mar 16–end) to edit advances, penalties, bonuses, or paid status. All time view sums those entries across periods.
+        </p>
+      )}
 
       {/* OVERVIEW — full breakdown, owner only */}
       {tab === 'overview' && (
@@ -210,9 +218,10 @@ export default function Payouts() {
                   {loading && <tr><td colSpan={8} style={{textAlign:'center',padding:30,color:'#64748b'}}>Loading…</td></tr>}
                   {chatters.map(emp => {
                     const s = byUser[emp.id]
-                    const a = adjusts.find(x => x.user_id === emp.id) || {}
+                    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
                     const gross = s.earnings + (+a.vence_bonus||0)
                     const netPayout = gross + (+a.owner_bonus||0) - (+a.advance||0) - (+a.penalty||0)
+                    const canEditPeriod = periodFilter !== 'all'
                     return (
                       <tr key={emp.id}>
                         <td style={{fontWeight:600}}>{emp.name}</td>
@@ -233,10 +242,12 @@ export default function Payouts() {
                             <div style={{display:'flex',flexDirection:'column',gap:2}}>
                               <input type="number" min="0" step="0.01" placeholder="+V"
                                 className="table-input" style={{width:52,fontSize:11,padding:'2px 4px'}}
-                                onKeyDown={e=>{if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'vence_bonus',(+(a.vence_bonus)||0)+(+e.target.value));e.target.value=''}}} />
+                                disabled={!canEditPeriod}
+                                onKeyDown={e=>{if(!canEditPeriod)return;if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'vence_bonus',(+(a.vence_bonus)||0)+(+e.target.value));e.target.value=''}}} />
                               <input type="number" min="0" step="0.01" placeholder="+O"
                                 className="table-input" style={{width:52,fontSize:11,padding:'2px 4px'}}
-                                onKeyDown={e=>{if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'owner_bonus',(+(a.owner_bonus)||0)+(+e.target.value));e.target.value=''}}} />
+                                disabled={!canEditPeriod}
+                                onKeyDown={e=>{if(!canEditPeriod)return;if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'owner_bonus',(+(a.owner_bonus)||0)+(+e.target.value));e.target.value=''}}} />
                             </div>
                           </div>
                         </td>
@@ -246,7 +257,8 @@ export default function Payouts() {
                             <span style={{color:'#fcd34d',fontWeight:600}}>{a.advance ? '-'+fmt(+a.advance) : '—'}</span>
                             <input type="number" min="0" step="0.01" placeholder="+add"
                               className="table-input" style={{width:60}}
-                              onKeyDown={e=>{if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'advance',(+(a.advance)||0)+(+e.target.value));e.target.value=''}}} />
+                              disabled={!canEditPeriod}
+                              onKeyDown={e=>{if(!canEditPeriod)return;if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'advance',(+(a.advance)||0)+(+e.target.value));e.target.value=''}}} />
                           </div>
                         </td>
                         <td className="r">
@@ -254,15 +266,19 @@ export default function Payouts() {
                             <span style={{color:'#f87171',fontWeight:600}}>{a.penalty ? '-'+fmt(+a.penalty) : '—'}</span>
                             <input type="number" min="0" step="0.01" placeholder="+add"
                               className="table-input" style={{width:60}}
-                              onKeyDown={e=>{if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'penalty',(+(a.penalty)||0)+(+e.target.value));e.target.value=''}}} />
+                              disabled={!canEditPeriod}
+                              onKeyDown={e=>{if(!canEditPeriod)return;if(e.key==='Enter'&&e.target.value){updateAdjustment(emp.id,'penalty',(+(a.penalty)||0)+(+e.target.value));e.target.value=''}}} />
                           </div>
                         </td>
                         <td className="r" style={{fontWeight:700,color:netPayout>=0?'#22c55e':'#f87171'}}>{fmt(netPayout)}</td>
                         <td className="r">
-                          {a.paid
-                            ? <span onClick={()=>togglePaid(emp.id)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
-                            : <button onClick={()=>togglePaid(emp.id)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
-                          }
+                          {canEditPeriod ? (
+                            a.paid
+                              ? <span onClick={()=>togglePaid(emp.id)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
+                              : <button onClick={()=>togglePaid(emp.id)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
+                          ) : (
+                            <span style={{color:'#64748b',fontSize:12}}>—</span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -271,7 +287,7 @@ export default function Payouts() {
                 <tfoot><tr className="tfoot-row">
                   <td colSpan={3}>Total</td>
                   <td></td>
-                  <td className="r" style={{color:'#4ade80'}}>{fmt(totalVenceBonus + chatters.reduce((s,e)=>{const a=adjusts.find(x=>x.user_id===e.id)||{};return s+(+a.owner_bonus||0)},0))}</td>
+                  <td className="r" style={{color:'#4ade80'}}>{fmt(totalVenceBonus + chatters.reduce((s,e)=>{const a=adjustmentForPeriod(adjusts,e.id,periodFilter);return s+(+a.owner_bonus||0)},0))}</td>
                   <td className="r" style={{color:'#22c55e'}}>{fmt(chatterGross)}</td>
                   <td className="r" style={{color:'#fcd34d'}}>{totalAdvances ? '-'+fmt(totalAdvances) : '—'}</td>
                   <td className="r" style={{color:'#f87171'}}>{totalPenalties ? '-'+fmt(totalPenalties) : '—'}</td>
@@ -354,7 +370,7 @@ export default function Payouts() {
                 <tbody>
                   {chatters.map(emp => {
                     const s = byUser[emp.id]
-                    const a = adjusts.find(x => x.user_id === emp.id) || {}
+                    const a = adjustmentForPeriod(adjusts, emp.id, periodFilter)
                     const gross = s.earnings + (+a.vence_bonus||0)
                     return (
                       <tr key={emp.id}>

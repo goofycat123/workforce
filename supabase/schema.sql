@@ -61,9 +61,15 @@ create table public.earnings (
                 round(earnings + bonus - penalty - advance, 2)
               ) stored,
   notes       text,
+  -- Half-month key matching Payouts period dropdown, e.g. 2026-3-second (nullable = legacy / unused)
+  payout_period_key text,
   updated_at  timestamptz default now(),
   unique(user_id, period_id)
 );
+
+create unique index if not exists earnings_user_payout_period_key_uidx
+  on public.earnings (user_id, payout_period_key)
+  where payout_period_key is not null;
 
 -- PAYOUT REQUESTS (early payout)
 create table public.payout_requests (
