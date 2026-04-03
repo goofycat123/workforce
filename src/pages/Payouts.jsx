@@ -10,6 +10,16 @@ const CM_DEFAULTS = [
   { name: 'Cale',  pct: 1 },
 ]
 
+const CM_PAID_STORAGE = 'cm_paid_by_period'
+
+function loadCmPaidByPeriod() {
+  try {
+    const v2 = JSON.parse(localStorage.getItem(CM_PAID_STORAGE) || '{}')
+    if (v2 && typeof v2 === 'object' && Object.keys(v2).length) return v2
+  } catch { /* ignore */ }
+  return {}
+}
+
 export default function Payouts() {
   const [employees, setEmployees] = useState([])
   const [allSales,  setAllSales]  = useState([])
@@ -21,9 +31,7 @@ export default function Payouts() {
     return `${y}-${m}-${d <= 15 ? 'first' : 'second'}`
   })
   const [cms, setCms] = useState(CM_DEFAULTS)
-  const [cmPaid, setCmPaid] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cm_paid') || '{}') } catch { return {} }
-  })
+  const [cmPaidByPeriod, setCmPaidByPeriod] = useState(loadCmPaidByPeriod)
   const [tab, setTab] = useState('overview')
 
   useEffect(() => { loadData() }, [])
@@ -57,9 +65,12 @@ export default function Payouts() {
   }
 
   function toggleCmPaid(i) {
-    const updated = { ...cmPaid, [i]: !cmPaid[i] }
-    setCmPaid(updated)
-    localStorage.setItem('cm_paid', JSON.stringify(updated))
+    if (periodFilter === 'all') return
+    const prev = cmPaidByPeriod[periodFilter] || {}
+    const nextPeriod = { ...prev, [i]: !prev[i] }
+    const updated = { ...cmPaidByPeriod, [periodFilter]: nextPeriod }
+    setCmPaidByPeriod(updated)
+    localStorage.setItem(CM_PAID_STORAGE, JSON.stringify(updated))
   }
 
   async function updateAdjustment(emp_id, field, value) {
@@ -162,7 +173,7 @@ export default function Payouts() {
       </div>
       {tab === 'overview' && periodFilter === 'all' && (
         <p style={{fontSize:13,color:'#94a3b8',margin:'-12px 0 20px'}}>
-          Select a pay period (e.g. Mar 16–end) to edit advances, penalties, bonuses, or paid status. All time view sums those entries across periods.
+          Select a pay period (e.g. Mar 16–end) to edit advances, penalties, bonuses, chatter paid status, or CM cut paid status. All time view sums chatter adjustments across periods; CM paid is per period only.
         </p>
       )}
 
@@ -322,10 +333,13 @@ export default function Payouts() {
                       </td>
                       <td className="r" style={{fontWeight:700,color:'#22c55e'}}>{fmt(totalNetSales * c.pct / 100)}</td>
                       <td className="r">
-                        {cmPaid[i]
-                          ? <span onClick={()=>toggleCmPaid(i)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
-                          : <button onClick={()=>toggleCmPaid(i)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
-                        }
+                        {periodFilter === 'all' ? (
+                          <span style={{color:'#64748b',fontSize:12}}>—</span>
+                        ) : cmPaidByPeriod[periodFilter]?.[i] ? (
+                          <span onClick={()=>toggleCmPaid(i)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
+                        ) : (
+                          <button onClick={()=>toggleCmPaid(i)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
+                        )}
                       </td>
                     </tr>
                   ))}
