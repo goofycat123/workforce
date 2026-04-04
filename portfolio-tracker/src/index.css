@@ -1,0 +1,17 @@
+* { box-sizing: border-box; margin: 0; }
+body { font-family: system-ui, sans-serif; background: #0a0a0b; color: #eee; padding: 24px; line-height: 1.45; }
+h1 { font-size: 1.25rem; margin-bottom: 8px; }
+p { color: #888; font-size: 0.85rem; margin-bottom: 16px; }
+.card { background: #141416; border: 1px solid #2a2a2e; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+select { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid #333; background: #0a0a0b; color: #fff; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 12px; }
+.stat { padding: 12px; background: #1a1a1d; border-radius: 8px; }
+.stat b { display: block; font-size: 0.65rem; color: #666; text-transform: uppercase; margin-bottom: 6px; }
+.stat span { font-size: 1.15rem; }
+.err { color: #f66; font-size: 0.9rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 12px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #2a2a2e; }
+th { color: #666; }
+td.r, th.r { text-align: right; }
+.up { color: #4ade80; }
+.down { color: #f87171; }

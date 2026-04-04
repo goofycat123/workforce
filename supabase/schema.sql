@@ -129,6 +129,9 @@ create policy "Users can insert own sales"
   on public.sales_entries for insert with check (user_id = auth.uid());
 create policy "Owner can insert sales for anyone"
   on public.sales_entries for insert with check (get_my_role() = 'owner');
+create policy "Owner can delete sales entries"
+  on public.sales_entries for delete
+  using (get_my_role() = 'owner');
 
 -- EARNINGS policies
 create policy "Users can view own earnings"

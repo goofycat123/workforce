@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { adjustmentForPeriod } from '../lib/earningsAdjustments'
+import { entryDateInPeriod, parseSalesEntryDateInput } from '../lib/datePeriod'
 
 function fmt(n) { return '$' + Number(n||0).toFixed(2) }
-
-function parseDate(raw) {
-  if (!raw) return null
-  const m = raw.trim().match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/)
-  if (m) return `${m[3]||'2026'}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) return raw.trim()
-  return null
-}
 
 const CM_DEFAULTS = [
   { name: 'Habibi', pct: 2 },
@@ -55,8 +48,11 @@ export default function Dashboard() {
 
   async function submitEntry(ev) {
     ev.preventDefault()
-    const date = parseDate(eDate)
-    if (!eName || !eSales || !date) { setMsg({ type:'error', text:'Fill all fields. Date format: 27.3' }); return }
+    const date = parseSalesEntryDateInput(eDate)
+    if (!eName || !eSales || !date) {
+      setMsg({ type:'error', text:'Fill all fields. Date: 3.4 = 3 Apr (day.month), or 4/3 = Apr 3 (US), or 2026-04-03' })
+      return
+    }
     setSaving(true); setMsg(null)
     const { error } = await supabase.from('sales_entries').insert({
       user_id:   eName,
@@ -65,8 +61,20 @@ export default function Dashboard() {
       note: null,
     })
     if (error) setMsg({ type:'error', text: error.message })
-    else { setMsg({ type:'success', text: 'Saved!' }); setEDate(''); setESales(''); await load() }
+    else {
+      setMsg({ type:'success', text: `Saved for ${date} (check correct month if you used day.month)` })
+      setEDate('')
+      setESales('')
+      await load()
+    }
     setSaving(false)
+  }
+
+  async function deleteEntry(id) {
+    if (!isOwner || !id || !window.confirm('Delete this entry?')) return
+    const { error } = await supabase.from('sales_entries').delete().eq('id', id)
+    if (error) setMsg({ type:'error', text: error.message })
+    else { setMsg({ type:'success', text: 'Deleted' }); await load() }
   }
 
   const periodOptions = [{ key:'all', label:'All time' }]
@@ -78,12 +86,7 @@ export default function Dashboard() {
     periodOptions.push({ key:`${y}-${m}-second`, label:`${mon} 16–end ${y}` })
   }
 
-  const filtered = sales.filter(s => {
-    if (period === 'all') return true
-    const d = new Date(s.date), parts = period.split('-')
-    return d.getFullYear()===+parts[0] && d.getMonth()+1===+parts[1] &&
-      (period.endsWith('first') ? d.getDate()<=15 : d.getDate()>15)
-  })
+  const filtered = sales.filter(s => entryDateInPeriod(s.date, period))
 
   const byUser = {}
   for (const s of filtered) {
@@ -94,10 +97,15 @@ export default function Dashboard() {
 
   const totalNS  = Object.values(byUser).reduce((s,x)=>s+x.net_sales, 0)
   const chatters = employees.filter(e => e.role==='chatter' && byUser[e.id])
-  const chatterGross = chatters.reduce((sum,emp) => {
+  const periodVenceBonus = chatters.reduce((sum, emp) => {
     const a = adjustmentForPeriod(adjusts, emp.id, period)
-    return sum + byUser[emp.id].earnings + (+a.vence_bonus||0)
+    return sum + (+a.vence_bonus || 0)
   }, 0)
+  const chatterGross = chatters.reduce((sum, emp) => {
+    const a = adjustmentForPeriod(adjusts, emp.id, period)
+    return sum + byUser[emp.id].earnings + (+a.vence_bonus || 0)
+  }, 0)
+  const tableEarningsTotal = filtered.reduce((s, x) => s + +x.earnings, 0)
   const grandTotal = chatterGross + totalNS * 0.04
 
   const nameMap = Object.fromEntries(employees.map(e=>[e.id,e.name]))
@@ -170,6 +178,11 @@ export default function Dashboard() {
               <div className="stat-card">
                 <div className="stat-label">Chatters gross</div>
                 <div className="stat-value" style={{color:'#22c55e'}}>{fmt(chatterGross)}</div>
+                {period !== 'all' && periodVenceBonus > 0 && (
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                    Table 7% total {fmt(tableEarningsTotal)} + Vence {fmt(periodVenceBonus)}
+                  </div>
+                )}
               </div>
               <div className="stat-card">
                 <div className="stat-label">Total Due</div>
@@ -190,10 +203,11 @@ export default function Dashboard() {
                   <th>Date</th>
                   <th className="r">NET Sales</th>
                   <th className="r">Earnings (7%)</th>
+                  {isOwner && <th className="r" style={{width:56}}></th>}
                 </tr></thead>
                 <tbody>
                   {filtered.length===0 && (
-                    <tr><td colSpan={4} style={{textAlign:'center',padding:30,color:'#64748b'}}>No entries</td></tr>
+                    <tr><td colSpan={isOwner?5:4} style={{textAlign:'center',padding:30,color:'#64748b'}}>No entries</td></tr>
                   )}
                   {filtered.map(s=>(
                     <tr key={s.id}>
@@ -201,6 +215,12 @@ export default function Dashboard() {
                       <td style={{color:'#94a3b8'}}>{s.date}</td>
                       <td className="r" style={{fontWeight:600}}>{fmt(s.net_sales)}</td>
                       <td className="r" style={{color:'#22c55e'}}>{fmt(s.earnings)}</td>
+                      {isOwner && (
+                        <td className="r">
+                          <button type="button" className="btn btn-sm btn-secondary" style={{padding:'2px 8px',fontSize:11}}
+                            onClick={() => deleteEntry(s.id)}>Del</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -210,6 +230,7 @@ export default function Dashboard() {
                     <td>Total</td>
                     <td className="r" style={{color:'#22c55e'}}>{fmt(totalNS)}</td>
                     <td className="r" style={{color:'#22c55e'}}>{fmt(filtered.reduce((s,x)=>s+ +x.earnings,0))}</td>
+                    {isOwner && <td></td>}
                   </tr></tfoot>
                 )}
               </table>
