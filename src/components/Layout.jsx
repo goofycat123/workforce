@@ -5,6 +5,7 @@ const NAV = [
   { path: '/dashboard',   icon: '⊞',  label: 'Dashboard',    roles: ['owner','manager','chatter'] },
   { path: '/payouts',     icon: '💸', label: 'Payouts',      roles: ['owner','manager','chatter'] },
   { path: '/profile',     icon: '👤', label: 'My Profile',   roles: ['owner','manager','chatter'] },
+  { path: '/pricempire',  icon: '📈', label: 'PriceEmpire',  roles: ['owner','manager','chatter'] },
   { path: '/admin',       icon: '⚙',  label: 'Admin',        roles: ['owner'] },
 ]
 
