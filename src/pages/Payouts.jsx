@@ -33,6 +33,7 @@ export default function Payouts() {
   const [cms, setCms] = useState(CM_DEFAULTS)
   const [cmPaidByPeriod, setCmPaidByPeriod] = useState(loadCmPaidByPeriod)
   const [tab, setTab] = useState('overview')
+  const [togglingId, setTogglingId] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -50,18 +51,31 @@ export default function Payouts() {
   }
 
   async function togglePaid(emp_id) {
-    if (periodFilter === 'all') return
+    if (periodFilter === 'all' || togglingId === emp_id) return
+    setTogglingId(emp_id)
     const existing = findAdjustmentRow(adjusts, emp_id, periodFilter)
     const newVal = !(existing?.paid)
+
+    // Optimistic update — flip instantly so the UI responds immediately
     if (!existing) {
+      const optimistic = { id: `tmp-${emp_id}`, user_id: emp_id, paid: newVal, payout_period_key: periodFilter }
+      setAdjusts(prev => [...prev, optimistic])
       const { data, error } = await supabase.from('earnings').insert([
         { user_id: emp_id, paid: newVal, payout_period_key: periodFilter }
       ]).select()
-      if (!error && data?.length) setAdjusts([...adjusts, data[0]])
+      if (!error && data?.length) {
+        setAdjusts(prev => prev.map(a => a.id === optimistic.id ? data[0] : a))
+      } else {
+        setAdjusts(prev => prev.filter(a => a.id !== optimistic.id))
+      }
     } else {
-      await supabase.from('earnings').update({ paid: newVal }).eq('id', existing.id)
-      setAdjusts(adjusts.map(a => a.id === existing.id ? {...a, paid: newVal} : a))
+      setAdjusts(prev => prev.map(a => a.id === existing.id ? { ...a, paid: newVal } : a))
+      const { error } = await supabase.from('earnings').update({ paid: newVal }).eq('id', existing.id)
+      if (error) {
+        setAdjusts(prev => prev.map(a => a.id === existing.id ? { ...a, paid: !newVal } : a))
+      }
     }
+    setTogglingId(null)
   }
 
   function toggleCmPaid(i) {
@@ -284,9 +298,20 @@ export default function Payouts() {
                         <td className="r" style={{fontWeight:700,color:netPayout>=0?'#22c55e':'#f87171'}}>{fmt(netPayout)}</td>
                         <td className="r">
                           {canEditPeriod ? (
-                            a.paid
-                              ? <span onClick={()=>togglePaid(emp.id)} style={{cursor:'pointer',display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#0d2318',color:'#22c55e',border:'1px solid #16a34a'}}>SETTLED</span>
-                              : <button onClick={()=>togglePaid(emp.id)} style={{padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer'}}>Mark Paid</button>
+                            togglingId === emp.id ? (
+                              <span style={{display:'inline-block',padding:'3px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e293b',color:'#475569',border:'1px solid #334155',opacity:.7}}>…</span>
+                            ) : a.paid ? (
+                              <span
+                                onClick={()=>togglePaid(emp.id)}
+                                title="Click to undo"
+                                style={{cursor:'pointer',display:'inline-block',padding:'3px 12px',borderRadius:4,fontSize:11,fontWeight:700,letterSpacing:.5,background:'#052e16',color:'#4ade80',border:'1px solid #16a34a',transition:'all .15s'}}
+                              >✓ Settled</span>
+                            ) : (
+                              <button
+                                onClick={()=>togglePaid(emp.id)}
+                                style={{padding:'3px 12px',borderRadius:4,fontSize:11,fontWeight:700,background:'#1e2a3a',color:'#94a3b8',border:'1px solid #2a3a4a',cursor:'pointer',transition:'all .15s'}}
+                              >Mark Paid</button>
+                            )
                           ) : (
                             <span style={{color:'#64748b',fontSize:12}}>—</span>
                           )}
