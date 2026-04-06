@@ -6,8 +6,6 @@ import Dashboard from './pages/Dashboard'
 import Profile from './pages/Profile'
 import Payouts from './pages/Payouts'
 import Admin from './pages/Admin'
-import PriceEmpirePortfolio from './pages/PriceEmpirePortfolio'
-
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
   if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', color:'#64748b' }}>Loading...</div>
@@ -32,7 +30,6 @@ export default function App() {
         <Route path="profile"     element={<Profile />} />
         <Route path="payouts"     element={<Payouts />} />
         <Route path="admin"       element={<RequireOwner><Admin /></RequireOwner>} />
-        <Route path="pricempire"  element={<PriceEmpirePortfolio />} />
       </Route>
     </Routes>
   )
