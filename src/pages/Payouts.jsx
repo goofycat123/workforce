@@ -34,6 +34,7 @@ export default function Payouts() {
   const [cmPaidByPeriod, setCmPaidByPeriod] = useState(loadCmPaidByPeriod)
   const [tab, setTab] = useState('overview')
   const [togglingId, setTogglingId] = useState(null)
+  const [toggleError, setToggleError] = useState(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -53,10 +54,10 @@ export default function Payouts() {
   async function togglePaid(emp_id) {
     if (periodFilter === 'all' || togglingId === emp_id) return
     setTogglingId(emp_id)
+    setToggleError(null)
     const existing = findAdjustmentRow(adjusts, emp_id, periodFilter)
     const newVal = !(existing?.paid)
 
-    // Optimistic update — flip instantly so the UI responds immediately
     if (!existing) {
       const optimistic = { id: `tmp-${emp_id}`, user_id: emp_id, paid: newVal, payout_period_key: periodFilter }
       setAdjusts(prev => [...prev, optimistic])
@@ -67,12 +68,16 @@ export default function Payouts() {
         setAdjusts(prev => prev.map(a => a.id === optimistic.id ? data[0] : a))
       } else {
         setAdjusts(prev => prev.filter(a => a.id !== optimistic.id))
+        setToggleError(error?.message || 'Save failed — check Supabase RLS permissions')
+        console.error('earnings insert error:', error)
       }
     } else {
       setAdjusts(prev => prev.map(a => a.id === existing.id ? { ...a, paid: newVal } : a))
       const { error } = await supabase.from('earnings').update({ paid: newVal }).eq('id', existing.id)
       if (error) {
         setAdjusts(prev => prev.map(a => a.id === existing.id ? { ...a, paid: !newVal } : a))
+        setToggleError(error?.message || 'Save failed — check Supabase RLS permissions')
+        console.error('earnings update error:', error)
       }
     }
     setTogglingId(null)
@@ -189,6 +194,12 @@ export default function Payouts() {
         <p style={{fontSize:13,color:'#94a3b8',margin:'-12px 0 20px'}}>
           Select a pay period (e.g. Mar 16–end) to edit advances, penalties, bonuses, chatter paid status, or CM cut paid status. All time view sums chatter adjustments across periods; CM paid is per period only.
         </p>
+      )}
+
+      {toggleError && (
+        <div style={{marginBottom:12,padding:'10px 14px',background:'#3b0f0f',border:'1px solid #dc2626',borderRadius:8,color:'#fca5a5',fontSize:13}}>
+          ⚠ {toggleError} <button onClick={()=>setToggleError(null)} style={{marginLeft:8,background:'none',border:'none',color:'#fca5a5',cursor:'pointer',fontWeight:700}}>×</button>
+        </div>
       )}
 
       {/* OVERVIEW — full breakdown, owner only */}
