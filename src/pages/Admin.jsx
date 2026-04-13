@@ -431,31 +431,61 @@ export default function Admin() {
       {/* EMPLOYEES */}
       {tab === 'employees' && (
         <div className="grid-2">
-          <div className="card">
-            <div className="section-label" style={{marginTop:0}}>Add employee</div>
-            <form onSubmit={createEmployee}>
-              <div className="form-group">
-                <label className="form-label">Full name</label>
-                <input className="form-input" placeholder="Pat Smith" value={eName} onChange={e=>setEName(e.target.value)} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input className="form-input" type="email" placeholder="pat@example.com" value={eEmail} onChange={e=>setEEmail(e.target.value)} required />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Temporary password</label>
-                <input className="form-input" type="password" placeholder="min 6 chars" value={ePass} onChange={e=>setEPass(e.target.value)} required minLength={6} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Role</label>
-                <select className="form-input form-select" value={eRole} onChange={e=>setERole(e.target.value)}>
-                  <option value="chatter">Chatter</option>
-                  <option value="manager">Manager</option>
-                  <option value="owner">Owner</option>
-                </select>
-              </div>
-              <button className="btn btn-primary" type="submit" style={{width:'100%',justifyContent:'center'}}>Create account</button>
-            </form>
+          <div style={{display:'flex',flexDirection:'column',gap:16}}>
+            {/* ── Quick add chatter (name only) ── */}
+            <div className="card">
+              <div className="section-label" style={{marginTop:0}}>Quick add chatter</div>
+              <p style={{fontSize:12,color:'#64748b',marginBottom:12,marginTop:0}}>No email needed — just a display name.</p>
+              <form onSubmit={async e => {
+                e.preventDefault(); setMsg(null)
+                if (!eName.trim()) return
+                const { error } = await supabase.from('profiles').insert({
+                  id: crypto.randomUUID(),
+                  name: eName.trim(),
+                  email: `${eName.trim().toLowerCase().replace(/\s+/g,'-')}@workforce.internal`,
+                  role: 'chatter',
+                })
+                if (error) setMsg({ type:'error', text: error.message })
+                else { setMsg({ type:'success', text: `${eName} added as chatter!` }); setEName(''); await loadAll() }
+              }}>
+                <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+                  <div className="form-group" style={{margin:0,flex:1}}>
+                    <label className="form-label">Name</label>
+                    <input className="form-input" placeholder="Ixoracee" value={eName} onChange={e=>setEName(e.target.value)} required />
+                  </div>
+                  <button className="btn btn-primary" type="submit" style={{marginBottom:1}}>Add</button>
+                </div>
+              </form>
+            </div>
+
+            {/* ── Full account (with email/login) ── */}
+            <div className="card">
+              <div className="section-label" style={{marginTop:0}}>Create login account</div>
+              <p style={{fontSize:12,color:'#64748b',marginBottom:12,marginTop:0}}>For managers/owners or chatters who need to log in.</p>
+              <form onSubmit={createEmployee}>
+                <div className="form-group">
+                  <label className="form-label">Full name</label>
+                  <input className="form-input" placeholder="Pat Smith" value={eName} onChange={e=>setEName(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" placeholder="pat@example.com" value={eEmail} onChange={e=>setEEmail(e.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Temporary password</label>
+                  <input className="form-input" type="password" placeholder="min 6 chars" value={ePass} onChange={e=>setEPass(e.target.value)} required minLength={6} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Role</label>
+                  <select className="form-input form-select" value={eRole} onChange={e=>setERole(e.target.value)}>
+                    <option value="chatter">Chatter</option>
+                    <option value="manager">Manager</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+                <button className="btn btn-primary" type="submit" style={{width:'100%',justifyContent:'center'}}>Create account</button>
+              </form>
+            </div>
           </div>
 
           <div className="table-wrap">
