@@ -9,3 +9,8 @@ alter table public.profiles drop constraint if exists profiles_id_fkey;
 drop policy if exists "Owner can insert profiles" on public.profiles;
 create policy "Owner can insert profiles"
   on public.profiles for insert with check (get_my_role() in ('owner','manager'));
+
+-- Allow owner to delete profiles (fire/remove chatters)
+drop policy if exists "Owner can delete profiles" on public.profiles;
+create policy "Owner can delete profiles"
+  on public.profiles for delete using (get_my_role() = 'owner');

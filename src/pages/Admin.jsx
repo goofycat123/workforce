@@ -492,7 +492,7 @@ export default function Admin() {
             <div className="table-header"><span className="table-title">All employees ({employees.length})</span></div>
             <div className="table-scroll">
               <table>
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr></thead>
                 <tbody>
                   {employees.map(e => (
                     <tr key={e.id}>
@@ -507,6 +507,19 @@ export default function Admin() {
                       <td style={{color:'#64748b',fontSize:12}}>{e.email}</td>
                       <td><span className={`badge ${e.role==='owner'?'badge-purple':e.role==='manager'?'badge-blue':'badge-gray'}`}>{e.role}</span></td>
                       <td style={{color:'#64748b',fontSize:12}}>{format(new Date(e.created_at),'MMM d, yyyy')}</td>
+                      <td>
+                        {e.role !== 'owner' && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Remove ${e.name}? Their sales history stays but they'll be removed from all dropdowns.`)) return
+                              const { error } = await supabase.from('profiles').delete().eq('id', e.id)
+                              if (error) setMsg({ type:'error', text: error.message })
+                              else { setMsg({ type:'success', text: `${e.name} removed.` }); await loadAll() }
+                            }}
+                            style={{padding:'2px 10px',borderRadius:4,fontSize:11,fontWeight:700,background:'#3b0f0f',color:'#f87171',border:'1px solid #7f1d1d',cursor:'pointer'}}
+                          >Remove</button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
